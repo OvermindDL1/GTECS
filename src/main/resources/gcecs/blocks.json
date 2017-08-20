@@ -1,0 +1,24 @@
+{
+    "entities":{
+        "0":{
+            "archetype":1,
+            "components":{
+                "MCBlock":{
+                    "name":"blah"
+                },
+                "PrintDebug":{
+                    "printTimes":42
+                }
+            }
+        }
+    },
+    "archetypes":{
+        "1":["MCBlock","PrintDebug"]},
+        "componentIdentifiers":{
+        "com.overminddl1.gtecs.components.PrintDebug":"PrintDebug",
+        "com.overminddl1.gtecs.components.MCBlock":"MCBlock"
+    },
+    "metadata":{
+        "version":1
+    }
+}

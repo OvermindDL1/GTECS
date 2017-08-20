@@ -1,7 +1,7 @@
 buildscript {
     repositories {
         mavenCentral()
-	jcenter()
+        jcenter()
         maven {
             name = "forge"
             url = "http://files.minecraftforge.net/maven"
@@ -13,17 +13,19 @@ buildscript {
     }
     dependencies {
         classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'
-	classpath 'de.undercouch:gradle-download-task:3.2.0'
+	    classpath 'de.undercouch:gradle-download-task:3.2.0'
+	    classpath 'net.onedaybeard.artemis:artemis-odb-gradle-plugin:2.1.0'
     }
 }
 
 apply plugin: 'de.undercouch.download'
+apply plugin: 'artemis'
 apply plugin: 'forge'
 
 def gt6_version = "6.05.34"
-version = "0.0.0"
-group = "com.yourname.modid" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
-archivesBaseName = "modid"
+version = "0.0.1"
+group = "com.overminddl1.gtecs" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
+archivesBaseName = "gtecs"
 
 minecraft {
     version = "1.7.10-10.13.4.1614-1.7.10"
@@ -73,6 +75,9 @@ dependencies {
     compile "applecore:AppleCore:1.7.10-1.3.9+241.82d7c:deobf"
     compile name: "buildcraft", version: "7.2.5" // , classifier: "api"
     compile group: 'com.gregoriust.gregtech', name: 'gregtech_1.7.10', version: gt6_version, classifier: 'dev'
+
+    compile "net.onedaybeard.artemis:artemis-odb:2.1.0"
+    compile "net.onedaybeard.artemis:artemis-odb-serializer-json:2.1.0"
 
     // you may put jars on which you depend on in ./libs (just don't commit them to git)
     // or you may define them like so..
@@ -167,12 +172,22 @@ jar {
     exclude('ic2/**')
 }
 
+weave {
+    classesDir = sourceSets.main.output.classesDir
+    dependsOn classes
+    enableArtemisPlugin = true
+    enablePooledWeaving = true
+    generateLinkMutators = true
+    optimizeEntitySystems = true
+}
+jar.dependsOn weave
+
 task deobfJar(type: Jar) {
     from sourceSets.main.output
     classifier = 'deobf'
     exclude('ic2/**')
 }
-	 
+
 task sourcesJar(type: Jar) {
     from sourceSets.main.allJava
     classifier = 'sources'
