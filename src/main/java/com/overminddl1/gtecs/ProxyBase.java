@@ -12,6 +12,8 @@ import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.overminddl1.gtecs.components.MCBlock;
 import com.overminddl1.gtecs.components.PrintDebug;
+import com.overminddl1.gtecs.systems.IconLoaderSystem;
+import com.overminddl1.gtecs.systems.IconsCacheSystem;
 import com.overminddl1.gtecs.systems.MCBlockRegistrationSystem;
 import com.overminddl1.gtecs.systems.NBTSerializationManager;
 import com.overminddl1.gtecs.systems.PrintDebugSystem;
@@ -30,6 +32,7 @@ public class ProxyBase extends Abstract_Proxy {
 	public WorldSerializationManager jsonSerializationManager;
 	public NBTSerializationManager nbtSerializationManager;
 	public MCBlockRegistrationSystem blockRegistrationSystem;
+	public IconLoaderSystem iconLoaderSystem;
 
 	// Helpers
 	public Archetype blueprintBlockBasic;
@@ -48,8 +51,6 @@ public class ProxyBase extends Abstract_Proxy {
 
 	@Override
 	public void onProxyBeforeInit(final Abstract_Mod aMod, final FMLInitializationEvent aEvent) {
-		blockRegistrationSystem = new MCBlockRegistrationSystem();
-		ecsBuilder.with(Priority.LOW, blockRegistrationSystem);
 		final WorldConfiguration config = ecsBuilder.build();
 
 		ecs = new com.artemis.World(config);
@@ -68,13 +69,23 @@ public class ProxyBase extends Abstract_Proxy {
 		strategy = new SystemInvoker();
 		ecsBuilder.register(strategy);
 
+		// Systems: Unprocessing
 		jsonSerializationManager = new WorldSerializationManager();
 		ecsBuilder.with(jsonSerializationManager);
 
 		nbtSerializationManager = new NBTSerializationManager();
 		ecsBuilder.with(nbtSerializationManager);
 
+		// Systems: Custom: Icon Handling
+		iconLoaderSystem = new IconLoaderSystem();
+		ecsBuilder.with(iconLoaderSystem);
+		ecsBuilder.with(new IconsCacheSystem());
+
 		// Systems: Low
+		blockRegistrationSystem = new MCBlockRegistrationSystem();
+		ecsBuilder.with(Priority.LOW, blockRegistrationSystem);
+
+		// Systems: Lowest
 		ecsBuilder.with(Priority.LOWEST, new PrintDebugSystem(jsonSerializationManager));
 	}
 

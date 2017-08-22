@@ -10,16 +10,17 @@ import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 import com.artemis.BaseSystem;
 import com.artemis.Component;
-import com.artemis.ComponentCollector;
 import com.artemis.ComponentManager;
 import com.artemis.ComponentMapper;
 import com.artemis.ComponentType;
 import com.artemis.Entity;
+import com.artemis.annotations.Transient;
 import com.artemis.annotations.Wire;
 import com.artemis.components.SerializationTag;
 import com.artemis.io.DefaultObjectStore;
@@ -28,6 +29,7 @@ import com.artemis.managers.TagManager;
 import com.artemis.utils.Bag;
 import com.artemis.utils.ImmutableBag;
 import com.artemis.utils.IntBag;
+import com.artemis.utils.reflect.ClassReflection;
 import com.esotericsoftware.jsonbeans.ObjectMap;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -55,7 +57,6 @@ public class NBTSerializationManager extends BaseSystem {
 	private TagManager tagManager;
 	private Collection<String> registeredTags;
 	private DefaultObjectStore defaultValues;
-	private ComponentCollector componentCollector;
 	private IntBag entityBag;
 
 	private ComponentMapper<SerializationTag> saveTagMapper;
@@ -64,10 +65,10 @@ public class NBTSerializationManager extends BaseSystem {
 	private final ObjectMap<Class, Object[]> classToDefaultValues = new ObjectMap();
 	private final BiMap<String, Class<? extends Component>> nameComponentMap = HashBiMap.create();
 	private BiMap<Class<? extends Component>, String> componentNameMap;
+	Set<Class<? extends Component>> transientComponents = new HashSet<Class<? extends Component>>();
 
 	@Override
 	protected void initialize() {
-		componentCollector = new ComponentCollector(world);
 		registeredTags = (tagManager != null) ? tagManager.getRegisteredTags() : Collections.<String>emptyList();
 		entityBag = new IntBag();
 		// Setup component name -> type mapping
@@ -76,11 +77,15 @@ public class NBTSerializationManager extends BaseSystem {
 		for (int i = 0, count = types.size(); i < count; ++i) {
 			final ComponentType type = types.get(i);
 			final Class<? extends Component> componentKlass = type.getType();
-			final String componentIdentifier = componentKlass.getSimpleName();
-			if (nameComponentMap.containsKey(componentIdentifier)) {
-				throw new RuntimeException("Duplicate ECS Component Names of: " + componentIdentifier);
+			if (ClassReflection.getDeclaredAnnotation(componentKlass, Transient.class) == null) {
+				final String componentIdentifier = componentKlass.getSimpleName();
+				if (nameComponentMap.containsKey(componentIdentifier)) {
+					throw new RuntimeException("Duplicate ECS Component Names of: " + componentIdentifier);
+				}
+				nameComponentMap.put(componentIdentifier, componentKlass);
+			} else {
+				transientComponents.add(componentKlass);
 			}
-			nameComponentMap.put(componentIdentifier, componentKlass);
 		}
 		componentNameMap = nameComponentMap.inverse();
 	}
@@ -140,12 +145,12 @@ public class NBTSerializationManager extends BaseSystem {
 		world.getComponentManager().getComponentsFor(entityId, components);
 		for (int i = 0, s = components.size(); s > i; i++) {
 			final Component c = components.get(i);
-			// if (identifiers.isTransient(c.getClass())) {
-			// continue;
-			// }
+			final Class<? extends Component> componentKlass = c.getClass();
+			if (transientComponents.contains(componentKlass)) {
+				continue;
+			}
 
-			// final String componentIdentifier = typeToName.get(c.getClass());
-			final String componentIdentifier = componentNameMap.get(c.getClass());
+			final String componentIdentifier = componentNameMap.get(componentKlass);
 			final NBTBase nbtComponent = writeFieldsOfComponent(c);
 			nbtComponents.setTag(componentIdentifier, nbtComponent);
 		}
@@ -297,12 +302,29 @@ public class NBTSerializationManager extends BaseSystem {
 				field.set(object, ((NBTTagString) nbt).func_150285_a_());
 				return;
 			case 9:
-				if (field.getType().isArray() && elementType == String.class) {
-					final NBTTagList nbtArr = (NBTTagList) nbt;
+				if (field.getType().isArray()) {
+					final NBTTagList nbtArr = (NBTTagList) nbt.copy(); // Yes, copy, because the `getTag` method
+					// vanished...
 					final int count = nbtArr.tagCount();
-					final String[] arr = new String[count];
-					for (int i = 0; i < count; ++i) {
-						arr[i] = nbtArr.getStringTagAt(i);
+					if (count == 0) {
+						return;
+					}
+					if (elementType == String.class) {
+						final String[] arr = new String[count];
+						for (int i = 0; i < count; ++i) {
+							arr[i] = nbtArr.getStringTagAt(i);
+						}
+						field.set(object, arr);
+						return;
+					}
+					final Object[] arr = new Object[count];
+					int idx = count - 1;
+					while (idx >= 0) {
+						final NBTBase nbtElem = nbtArr.removeTag(idx);
+						final Object obj = newInstance(elementType);
+						writeObjectFromNBT(obj, nbtElem);
+						arr[idx] = obj;
+						idx = idx + 1;
 					}
 					field.set(object, arr);
 				}
@@ -527,15 +549,22 @@ public class NBTSerializationManager extends BaseSystem {
 				}
 				return new NBTTagIntArray(arr);
 			}
-			if (elementType == String.class) {
-				final NBTTagList arr = new NBTTagList();
-				for (int i = 0; i < length; i++) {
-					arr.appendTag(valueToNBT(Array.get(value, i), elementType, null));
-				}
-				return arr;
+			// if (elementType == String.class) {
+			// final NBTTagList arr = new NBTTagList();
+			// for (int i = 0; i < length; i++) {
+			// arr.appendTag(valueToNBT(Array.get(value, i), elementType, null));
+			// }
+			// return arr;
+			// }
+			final NBTTagList arr = new NBTTagList();
+			for (int i = 0; i < length; i++) {
+				arr.appendTag(valueToNBT(Array.get(value, i), elementType, null));
 			}
-			throw new RuntimeException(
-					"Serialization error of unsupported array type with elements of: " + elementType.getName());
+			return arr;
+
+			// throw new RuntimeException(
+			// "Serialization error of unsupported array type with elements of: " +
+			// elementType.getName());
 		}
 
 		if (value instanceof Map) {

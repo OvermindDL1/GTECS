@@ -23,9 +23,12 @@ apply plugin: 'artemis'
 apply plugin: 'forge'
 
 def gt6_version = "6.05.34"
-version = "0.0.1"
+version = "0.0.2"
 group = "com.overminddl1.gtecs" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = "gtecs"
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
 
 minecraft {
     version = "1.7.10-10.13.4.1614-1.7.10"
@@ -78,6 +81,8 @@ dependencies {
 
     compile "net.onedaybeard.artemis:artemis-odb:2.1.0"
     compile "net.onedaybeard.artemis:artemis-odb-serializer-json:2.1.0"
+    compile "net.mostlyoriginal.artemis-odb:contrib-core:2.2.0"
+    compile "net.mostlyoriginal.artemis-odb:contrib-eventbus:2.2.0"
 
     // you may put jars on which you depend on in ./libs (just don't commit them to git)
     // or you may define them like so..
